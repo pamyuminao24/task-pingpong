@@ -42,7 +42,48 @@ body.setup { background: linear-gradient(135deg, #fafaf7, #e5e5e0); }
 .setup-screen h1 {
   font-size: 36px; margin-bottom: 4px; letter-spacing: -0.02em;
 }
-.setup-screen .tagline { font-size: 14px; color: #666; margin-bottom: 32px; }
+.setup-screen .tagline { font-size: 16px; color: #1a1a1a; font-weight: 600; margin-bottom: 4px; line-height: 1.4; }
+.setup-screen .subtagline { font-size: 12px; color: #777; margin-bottom: 28px; }
+.setup-screen .how-card {
+  background: #fff; border-radius: 14px; padding: 16px 20px; margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.setup-screen .how-card h3 {
+  font-size: 11px; color: #666; margin-bottom: 12px;
+  letter-spacing: 0.05em; font-weight: 700; text-transform: uppercase;
+}
+.setup-screen .how-step {
+  display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start;
+  padding: 6px 0;
+}
+.setup-screen .how-num {
+  width: 28px; height: 28px; border-radius: 50%; background: #1a1a1a; color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+}
+.setup-screen .how-text { font-size: 13px; line-height: 1.5; }
+.setup-screen .how-text b { display: block; font-size: 14px; color: #1a1a1a; }
+.setup-screen .how-text span { color: #666; font-size: 12px; display: block; margin-top: 2px; }
+.setup-screen .how-arrow {
+  margin-left: 14px; color: #ccc; font-size: 16px; line-height: 1; padding: 2px 0;
+}
+.setup-screen .usecase-card {
+  background: #fff8e1; border-radius: 12px; padding: 12px 18px; margin-bottom: 16px;
+  border: 1px solid #f0e3a8;
+}
+.setup-screen .usecase-card h3 {
+  font-size: 11px; color: #8a6d11; margin-bottom: 8px;
+  letter-spacing: 0.05em; font-weight: 700; text-transform: uppercase;
+}
+.setup-screen .usecase-card ul {
+  list-style: none; padding: 0; margin: 0;
+}
+.setup-screen .usecase-card li {
+  font-size: 13px; padding: 3px 0; color: #333;
+}
+.setup-screen .author-note {
+  margin-top: 14px; font-size: 11px; color: #888; line-height: 1.7;
+  text-align: center;
+}
 .setup-screen .form-card {
   background: #fff; border-radius: 16px; padding: 28px 24px;
   box-shadow: 0 4px 20px rgba(0,0,0,.06);
@@ -337,7 +378,44 @@ function renderSetup() {
   document.getElementById('app').innerHTML = `
     <div class="setup-screen">
       <h1>🏓 Task PingPong</h1>
-      <p class="tagline">2者間タスクのキャッチボールを、URLだけで管理する。</p>
+      <p class="tagline">「次は私の番？相手の番？」を、URLに書く。</p>
+      <p class="subtagline">2人のやり取り専用・アカウント不要・3秒で始まる。</p>
+
+      <div class="how-card">
+        <h3>つかい方</h3>
+        <div class="how-step">
+          <div class="how-num">1</div>
+          <div class="how-text">
+            <b>タスクを作る</b>
+            <span>件名と2人の名前を入力。URLが発行されます。</span>
+          </div>
+        </div>
+        <div class="how-arrow">↓</div>
+        <div class="how-step">
+          <div class="how-num">2</div>
+          <div class="how-text">
+            <b>URLをChatworkに貼る</b>
+            <span>「いま誰のボールか」が一目でわかります。</span>
+          </div>
+        </div>
+        <div class="how-arrow">↓</div>
+        <div class="how-step">
+          <div class="how-num">3</div>
+          <div class="how-text">
+            <b>相手が打ち返す</b>
+            <span>新しいURLを貼り返してきて、ボールが戻ります。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="usecase-card">
+        <h3>こんな往復に</h3>
+        <ul>
+          <li>📄 提案書ドラフトのレビュー往復</li>
+          <li>🎫 イベント運営の物販フライヤー回収・確認</li>
+          <li>✏️ クライアントとの修正出し → 確認</li>
+        </ul>
+      </div>
 
       <div class="form-card">
         <label for="title">タスクの件名</label>
@@ -355,7 +433,11 @@ function renderSetup() {
           <button type="button" data-side="p2" onclick="setSide('p2')" class="active">相手</button>
         </div>
 
-        <button class="primary-btn" onclick="createTask()">タスクを作る → URLを発行</button>
+        <button class="primary-btn" onclick="createTask()">🏓 ボールを投げる</button>
+      </div>
+
+      <div class="author-note">
+        IS部門責任者 × アニソン/VTuber DJの自分が、Chatworkで埋もれる現場の往復を解決したくて作りました。β版です。
       </div>
 
       <div class="info">
@@ -540,7 +622,7 @@ function render() {
   }
 }
 
-// ============================================================
+// ===========================================================
 // Auto-update elapsed time every minute
 // ============================================================
 setInterval(() => {
