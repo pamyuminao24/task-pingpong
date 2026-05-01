@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>🏓 Task PingPong — URL-firstタスクキャッチボール</title>
+<meta name="description" content="2者間タスクのキャッチボールをURLだけで管理。Chatworkに貼るだけで「いま誰のボールか」が一目でわかる。">
+<meta property="og:title" content="🏓 Task PingPong - 2者間タスクキャッチボール">
+<meta property="og:description" content="URLだけでタスクの進行を共有。アカウント不要。">
+<meta property="og:type" content="website">
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<style>
+:root {
+  --bg-p1: #3b82f6;
+  --bg-p2: #ef4444;
+  --bg-neutral: #1a1a1a;
+  --text-on-color: #fff;
+  --bg-card: #fff;
+  --border: rgba(255,255,255,0.2);
+  --shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #fafaf7;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.6s ease;
+}
+body.court-p1 { background: linear-gradient(135deg, #3b82f6, #1e40af); }
+body.court-p2 { background: linear-gradient(135deg, #ef4444, #991b1b); }
+body.setup { background: linear-gradient(135deg, #fafaf7, #e5e5e0); }
+
+#app { max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; }
+
+/* Setup screen */
+.setup-screen { color: #1a1a1a; }
+.setup-screen h1 {
+  font-size: 36px; margin-bottom: 4px; letter-spacing: -0.02em;
+}
+.setup-screen .tagline { font-size: 14px; color: #666; margin-bottom: 32px; }
+.setup-screen .form-card {
+  background: #fff; border-radius: 16px; padding: 28px 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.06);
+}
+.setup-screen label {
+  display: block; font-size: 12px; font-weight: 600; color: #555;
+  margin-top: 16px; margin-bottom: 6px; letter-spacing: 0.02em;
+}
+.setup-screen label:first-of-type { margin-top: 0; }
+.setup-screen input[type="text"] {
+  width: 100%; padding: 12px 14px; border: 2px solid #e5e5e0;
+  border-radius: 8px; font-size: 16px; font-family: inherit;
+  transition: border-color 0.15s;
+}
+.setup-screen input[type="text"]:focus {
+  outline: none; border-color: #1a1a1a;
+}
+.setup-screen .ball-side {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+}
+.setup-screen .ball-side button {
+  background: #f5f5ef; border: 2px solid transparent;
+  border-radius: 8px; padding: 10px 14px; font-size: 13px;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.setup-screen .ball-side button.active {
+  background: #1a1a1a; color: #fff; border-color: #1a1a1a;
+}
+.setup-screen .primary-btn {
+  width: 100%; margin-top: 24px; padding: 16px; font-size: 16px;
+  font-weight: 700; background: #1a1a1a; color: #fff; border: none;
+  border-radius: 10px; cursor: pointer; transition: transform 0.1s;
+  font-family: inherit;
+}
+.setup-screen .primary-btn:hover { transform: translateY(-1px); }
+.setup-screen .primary-btn:active { transform: translateY(0); }
+.setup-screen .info {
+  margin-top: 24px; font-size: 12px; color: #888; line-height: 1.7;
+  background: rgba(0,0,0,.03); padding: 14px 16px; border-radius: 8px;
+}
+
+/* Main court view */
+.court-view { color: #fff; padding-top: 8px; }
+.court-view .top-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: rgba(255,255,255,.7); margin-bottom: 28px;
+  letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;
+}
+.court-view .ball-icon {
+  text-align: center; font-size: 56px; margin-bottom: 8px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.2));
+}
+.court-view .ball-label {
+  text-align: center; font-size: 13px; color: rgba(255,255,255,.85);
+  margin-bottom: 8px; letter-spacing: 0.05em;
+}
+.court-view .ball-owner {
+  text-align: center; font-size: 56px; font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 10px;
+  word-break: break-all;
+}
+.court-view .ball-owner .suffix { font-size: 0.5em; font-weight: 500; opacity: 0.7; margin-left: 4px; }
+.court-view .elapsed-pill {
+  display: inline-block; background: rgba(255,255,255,.18);
+  padding: 4px 12px; border-radius: 999px; font-size: 12px;
+  font-weight: 600;
+}
+.court-view .elapsed-wrap { text-align: center; margin-bottom: 32px; }
+
+.court-view .task-card {
+  background: rgba(255,255,255,.95); color: #1a1a1a;
+  border-radius: 16px; padding: 24px; margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.court-view .task-title {
+  font-size: 20px; font-weight: 700; line-height: 1.4;
+  word-wrap: break-word;
+}
+.court-view .task-meta {
+  margin-top: 8px; font-size: 11px; color: #888;
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+
+.court-view .history-card {
+  background: rgba(255,255,255,.95); color: #1a1a1a;
+  border-radius: 16px; padding: 20px 24px; margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.court-view .history-card h3 {
+  font-size: 12px; color: #666; margin-bottom: 12px;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.court-view .hist-item {
+  display: grid; grid-template-columns: 12px 1fr;
+  gap: 12px; padding: 8px 0; border-top: 1px solid #f0f0ec;
+}
+.court-view .hist-item:first-child { border-top: none; padding-top: 0; }
+.court-view .hist-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  margin-top: 6px; background: #ddd;
+}
+.court-view .hist-dot.p1 { background: var(--bg-p1); }
+.court-view .hist-dot.p2 { background: var(--bg-p2); }
+.court-view .hist-by {
+  font-weight: 700; font-size: 13px;
+}
+.court-view .hist-time { color: #888; font-size: 11px; margin-left: 8px; }
+.court-view .hist-note { font-size: 13px; color: #444; margin-top: 2px; }
+
+.court-view .return-card {
+  background: rgba(255,255,255,.95); color: #1a1a1a;
+  border-radius: 16px; padding: 20px 24px;
+  box-shadow: var(--shadow);
+}
+.court-view .return-card textarea {
+  width: 100%; min-height: 70px; padding: 12px;
+  border: 2px solid #e5e5e0; border-radius: 8px; font-size: 14px;
+  font-family: inherit; resize: vertical;
+}
+.court-view .return-card textarea:focus { outline: none; border-color: #1a1a1a; }
+.court-view .return-btn {
+  width: 100%; margin-top: 12px; padding: 16px; font-size: 16px;
+  font-weight: 700; background: #1a1a1a; color: #fff; border: none;
+  border-radius: 10px; cursor: pointer; font-family: inherit;
+  transition: transform 0.1s;
+}
+.court-view .return-btn:hover { transform: translateY(-1px); }
+.court-view .return-btn:disabled {
+  background: #aaa; cursor: not-allowed; transform: none;
+}
+
+.court-view .secondary-actions {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;
+}
+.court-view .secondary-btn {
+  padding: 12px; font-size: 13px; font-weight: 600;
+  background: rgba(255,255,255,.2); color: #fff;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 8px;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.15s;
+}
+.court-view .secondary-btn:hover { background: rgba(255,255,255,.3); }
+
+.court-view .url-warning {
+  margin-top: 16px; font-size: 11px; color: rgba(255,255,255,.7);
+  text-align: center; line-height: 1.6;
+}
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1a1a1a; color: #fff; padding: 12px 22px;
+  border-radius: 999px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 1000;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2s forwards;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes toastOut {
+  to { opacity: 0; transform: translate(-50%, -12px); }
+}
+
+/* Footer */
+.footer {
+  margin-top: 32px; padding-top: 16px; text-align: center;
+  font-size: 11px; opacity: 0.6;
+}
+.court-view .footer { color: rgba(255,255,255,.7); }
+
+/* Responsive */
+@media (max-width: 480px) {
+  .court-view .ball-owner { font-size: 42px; }
+  .setup-screen h1 { font-size: 30px; }
+  #app { padding: 20px 16px 60px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+// State encoding/decoding
+// ============================================================
+function encodeState(state) {
+  const json = JSON.stringify(state);
+  const compressed = pako.deflate(json);
+  return base64urlFromBytes(compressed);
+}
+
+function decodeState(encoded) {
+  const bytes = bytesFromBase64url(encoded);
+  const json = pako.inflate(bytes, { to: 'string' });
+  return JSON.parse(json);
+}
+
+function base64urlFromBytes(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function bytesFromBase64url(str) {
+  let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// ============================================================
+// Routing
+// ============================================================
+function getCurrentState() {
+  const hash = location.hash.slice(1);
+  if (!hash) return null;
+  try {
+    return decodeState(hash);
+  } catch (e) {
+    console.error('Failed to decode state:', e);
+    return null;
+  }
+}
+
+function pushState(state) {
+  const encoded = encodeState(state);
+  location.hash = encoded;
+  // hashchange will trigger re-render
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+function elapsedString(seconds) {
+  seconds = Math.floor(seconds);
+  if (seconds < 60) return `${seconds}秒前`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分前`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}時間前`;
+  return `${Math.floor(seconds / 86400)}日前`;
+}
+
+function formatDateTime(ts) {
+  const d = new Date(ts * 1000);
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const hh = d.getHours();
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${m}/${day} ${hh}:${mm}`;
+}
+
+function showToast(message) {
+  // remove any existing toast first
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = message;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2400);
+}
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+// ============================================================
+// Render: Setup
+// ============================================================
+let setupBallSide = 'p2'; // initially the ball is in the receiver's court (you sent it)
+
+function renderSetup() {
+  document.body.className = 'setup';
+  document.getElementById('app').innerHTML = `
+    <div class="setup-screen">
+      <h1>🏓 Task PingPong</h1>
+      <p class="tagline">2者間タスクのキャッチボールを、URLだけで管理する。</p>
+
+      <div class="form-card">
+        <label for="title">タスクの件名</label>
+        <input type="text" id="title" placeholder="例：提案書ドラフトのレビュー" maxlength="80" />
+
+        <label for="p1">あなたの名前</label>
+        <input type="text" id="p1" placeholder="例：イヌザキ" maxlength="20" />
+
+        <label for="p2">相手の名前</label>
+        <input type="text" id="p2" placeholder="例：サトウさん" maxlength="20" />
+
+        <label>最初にボールを持っているのは？</label>
+        <div class="ball-side">
+          <button type="button" data-side="p1" onclick="setSide('p1')">あなた</button>
+          <button type="button" data-side="p2" onclick="setSide('p2')" class="active">相手</button>
+        </div>
+
+        <button class="primary-btn" onclick="createTask()">タスクを作る → URLを発行</button>
+      </div>
+
+      <div class="info">
+        ⚪︎ アカウント不要・サーバーに何も保存されません。<br>
+        ⚪︎ タスクの状態はURLそのものに記録されます。URLをChatworkに貼るだけで相手にボールが渡ります。<br>
+        ⚪︎ 機密情報は入力しないでください（URLを知っている人は誰でも見られます）。
+      </div>
+    </div>
+  `;
+}
+
+function setSide(side) {
+  setupBallSide = side;
+  document.querySelectorAll('.ball-side button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.side === side);
+  });
+}
+
+function createTask() {
+  const title = document.getElementById('title').value.trim();
+  const p1 = document.getElementById('p1').value.trim();
+  const p2 = document.getElementById('p2').value.trim();
+  if (!title || !p1 || !p2) {
+    showToast('全項目を入力してください');
+    return;
+  }
+  const ts = nowSeconds();
+  const state = {
+    v: 1,
+    t: title,
+    c: ts,
+    p1: p1,
+    p2: p2,
+    o: setupBallSide,
+    h: [
+      { ts: ts, by: 'p1', n: '作成' }
+    ]
+  };
+  pushState(state);
+}
+
+// ============================================================
+// Render: Court (main view)
+// ============================================================
+function renderCourt(state) {
+  document.body.className = `court-${state.o}`;
+
+  const ownerName = state.o === 'p1' ? state.p1 : state.p2;
+  const lastMove = state.h[state.h.length - 1];
+  const elapsedSec = nowSeconds() - lastMove.ts;
+  const returnsCount = state.h.length - 1; // exclude initial creation
+
+  const historyHtml = [...state.h].reverse().map(h => {
+    const byName = h.by === 'p1' ? state.p1 : state.p2;
+    return `
+      <div class="hist-item">
+        <span class="hist-dot ${h.by}"></span>
+        <div>
+          <span class="hist-by">${escapeHtml(byName)}</span>
+          <span class="hist-time">${formatDateTime(h.ts)}</span>
+          <div class="hist-note">${escapeHtml(h.n)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('app').innerHTML = `
+    <div class="court-view">
+      <div class="top-bar">
+        <span>🏓 Task PingPong</span>
+        <span>往復 ${returnsCount}回</span>
+      </div>
+
+      <div class="ball-icon">🏓</div>
+      <div class="ball-label">いまボールを持っているのは</div>
+      <div class="ball-owner">${escapeHtml(ownerName)}<span class="suffix">のコート</span></div>
+      <div class="elapsed-wrap">
+        <span class="elapsed-pill">⏱ ${elapsedString(elapsedSec)}</span>
+      </div>
+
+      <div class="task-card">
+        <div class="task-title">${escapeHtml(state.t)}</div>
+        <div class="task-meta">
+          <span>${escapeHtml(state.p1)} ↔ ${escapeHtml(state.p2)}</span>
+          <span>作成 ${formatDateTime(state.c)}</span>
+        </div>
+      </div>
+
+      <div class="history-card">
+        <h3>履歴</h3>
+        ${historyHtml}
+      </div>
+
+      <div class="return-card">
+        <textarea id="note" placeholder="メモ（例：レビュー完了しました／A案で進めます／追加で確認お願いします）" maxlength="200"></textarea>
+        <button class="return-btn" onclick="returnBall()">🏓 私が打ち返した（ボールを相手のコートへ）</button>
+        <div class="secondary-actions">
+          <button class="secondary-btn" onclick="copyForChatwork()">📋 Chatwork用にコピー</button>
+          <button class="secondary-btn" onclick="newTask()">＋ 新しいタスク</button>
+        </div>
+      </div>
+
+      <div class="url-warning">
+        URLにすべての状態が含まれます。新URL発行のたびに最新版を共有してください。
+      </div>
+
+      <div class="footer">
+        🏓 Task PingPong — URLが、ボール。
+      </div>
+    </div>
+  `;
+}
+
+function returnBall() {
+  const state = getCurrentState();
+  if (!state) return;
+  const noteEl = document.getElementById('note');
+  const note = noteEl.value.trim() || '打ち返し';
+  // The current owner is the one who is now returning the ball
+  const sender = state.o;
+  const newOwner = state.o === 'p1' ? 'p2' : 'p1';
+  state.h.push({
+    ts: nowSeconds(),
+    by: sender,
+    n: note
+  });
+  state.o = newOwner;
+  pushState(state);
+  // Auto-copy after returning
+  setTimeout(() => copyForChatwork(true), 200);
+}
+
+function copyForChatwork(afterReturn) {
+  const state = getCurrentState();
+  if (!state) return;
+  const url = location.href;
+  const ownerName = state.o === 'p1' ? state.p1 : state.p2;
+  const lastNote = state.h[state.h.length - 1].n;
+  const message = `🏓 [${state.t}]\n→ ${ownerName}さんのコートです（${lastNote}）\n${url}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(message).then(() => {
+      showToast(afterReturn ? '打ち返し完了！Chatwork用メッセージをコピーしました' : 'Chatwork用メッセージをコピーしました');
+    }).catch(() => {
+      fallbackCopy(message);
+    });
+  } else {
+    fallbackCopy(message);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('クリップボードにコピーしました');
+  } catch (e) {
+    showToast('コピーできませんでした。手動で選択してください');
+  }
+  ta.remove();
+}
+
+function newTask() {
+  if (confirm('新しいタスクを作りますか？\n（現在のタスクのURLは変わらず残ります）')) {
+    location.hash = '';
+  }
+}
+
+// ============================================================
+// Main render dispatcher
+// ============================================================
+function render() {
+  const state = getCurrentState();
+  if (!state) {
+    renderSetup();
+  } else {
+    renderCourt(state);
+  }
+}
+
+// ============================================================
+// Auto-update elapsed time every minute
+// ============================================================
+setInterval(() => {
+  const state = getCurrentState();
+  if (state) {
+    const elapsedEl = document.querySelector('.elapsed-pill');
+    if (elapsedEl) {
+      const lastMove = state.h[state.h.length - 1];
+      const elapsedSec = nowSeconds() - lastMove.ts;
+      elapsedEl.textContent = `⏱ ${elapsedString(elapsedSec)}`;
+    }
+  }
+}, 60000);
+
+// ============================================================
+// Init
+// ============================================================
+window.addEventListener('hashchange', render);
+window.addEventListener('DOMContentLoaded', render);
+if (document.readyState !== 'loading') render();
+
+// Expose functions for inline onclick (since we're not using a bundler)
+window.setSide = setSide;
+window.createTask = createTask;
+window.returnBall = returnBall;
+window.copyForChatwork = copyForChatwork;
+window.newTask = newTask;
+</script>
+
+</body>
+</html>
