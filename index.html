@@ -186,6 +186,11 @@ body.setup { background: linear-gradient(135deg, #fafaf7, #e5e5e0); }
   transition: background 0.15s;
 }
 .court-view .secondary-btn:hover { background: rgba(255,255,255,.3); }
+.court-view .secondary-btn.copy-btn {
+  background: rgba(255,255,255,.95); color: #1a1a1a;
+  border-color: rgba(255,255,255,.95);
+}
+.court-view .secondary-btn.copy-btn:hover { background: #fff; }
 
 .court-view .url-warning {
   margin-top: 16px; font-size: 11px; color: rgba(255,255,255,.7);
@@ -453,7 +458,7 @@ function renderCourt(state) {
         <textarea id="note" placeholder="メモ（例：レビュー完了しました／A案で進めます／追加で確認お願いします）" maxlength="200"></textarea>
         <button class="return-btn" onclick="returnBall()">🏓 私が打ち返した（ボールを相手のコートへ）</button>
         <div class="secondary-actions">
-          <button class="secondary-btn" onclick="copyForChatwork()">📋 Chatwork用にコピー</button>
+          <button class="secondary-btn copy-btn" onclick="copyForChatwork()">📋 Chatwork用にコピー</button>
           <button class="secondary-btn" onclick="newTask()">＋ 新しいタスク</button>
         </div>
       </div>
