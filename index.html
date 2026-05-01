@@ -84,6 +84,86 @@ body.setup { background: linear-gradient(135deg, #fafaf7, #e5e5e0); }
   margin-top: 14px; font-size: 11px; color: #888; line-height: 1.7;
   text-align: center;
 }
+
+/* My-tasks section */
+.setup-screen .my-section {
+  background: #fff; border-radius: 14px; padding: 12px 18px; margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.setup-screen .my-name-display {
+  font-size: 13px; color: #555;
+}
+.setup-screen .my-name-display b {
+  color: #1a1a1a; font-size: 14px; margin: 0 4px;
+}
+.setup-screen .my-edit-btn {
+  background: #f5f5ef; border: none; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit; color: #555;
+}
+.setup-screen .my-edit-btn:hover { background: #e5e5e0; }
+
+.setup-screen .task-list { margin-bottom: 16px; }
+.setup-screen .task-list details {
+  background: #fff; border-radius: 12px; margin-bottom: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04); overflow: hidden;
+}
+.setup-screen .task-list summary {
+  padding: 12px 16px; cursor: pointer; font-size: 13px; font-weight: 600;
+  list-style: none; display: flex; justify-content: space-between; align-items: center;
+}
+.setup-screen .task-list summary::-webkit-details-marker { display: none; }
+.setup-screen .task-list summary:hover { background: #fafaf7; }
+.setup-screen .task-list .summary-count {
+  background: #1a1a1a; color: #fff; border-radius: 999px;
+  padding: 2px 10px; font-size: 11px; font-weight: 700; min-width: 24px; text-align: center;
+}
+.setup-screen .task-list details.empty .summary-count { background: #ccc; }
+.setup-screen .task-list details.mine summary { color: #c2410c; }
+.setup-screen .task-list details.mine .summary-count { background: #ef4444; }
+.setup-screen .task-list .task-card {
+  border-top: 1px solid #f0f0ec; padding: 12px 16px;
+  display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center;
+}
+.setup-screen .task-list .task-card-link {
+  text-decoration: none; color: inherit; display: block;
+  flex: 1; min-width: 0;
+}
+.setup-screen .task-list .task-title {
+  font-size: 14px; font-weight: 600; color: #1a1a1a;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.setup-screen .task-list .task-meta {
+  font-size: 11px; color: #888; margin-top: 2px;
+}
+.setup-screen .task-list .task-meta .stale {
+  color: #c2410c; font-weight: 600;
+}
+.setup-screen .task-list details.theirs .task-meta .stale { color: #888; font-weight: 400; }
+.setup-screen .task-list .task-action {
+  background: transparent; border: none; cursor: pointer;
+  padding: 6px 8px; font-size: 14px; color: #888; border-radius: 4px;
+  font-family: inherit;
+}
+.setup-screen .task-list .task-action:hover { background: #f5f5ef; color: #1a1a1a; }
+.setup-screen .task-list .empty-text {
+  padding: 8px 16px 14px; font-size: 12px; color: #aaa; text-align: center;
+}
+
+.court-view .complete-row {
+  margin-top: 12px; text-align: center;
+}
+.court-view .complete-btn {
+  background: transparent; color: rgba(255,255,255,.85);
+  border: 1px solid rgba(255,255,255,.4); border-radius: 999px;
+  padding: 6px 18px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.court-view .complete-btn:hover { background: rgba(255,255,255,.1); }
+.court-view .complete-btn.completed {
+  background: rgba(255,255,255,.95); color: #1a1a1a;
+}
 .setup-screen .form-card {
   background: #fff; border-radius: 16px; padding: 28px 24px;
   box-shadow: 0 4px 20px rgba(0,0,0,.06);
@@ -369,17 +449,169 @@ function nowSeconds() {
 }
 
 // ============================================================
+// localStorage: my name + task list
+// ============================================================
+const LS_NAME_KEY = 'tpp_my_name';
+const LS_TASKS_KEY = 'tpp_tasks';
+
+function getMyName() {
+  try { return localStorage.getItem(LS_NAME_KEY) || ''; } catch (e) { return ''; }
+}
+function setMyName(name) {
+  try { localStorage.setItem(LS_NAME_KEY, name); } catch (e) {}
+}
+
+function getStoredTasks() {
+  try { return JSON.parse(localStorage.getItem(LS_TASKS_KEY) || '[]'); } catch (e) { return []; }
+}
+function saveStoredTasks(tasks) {
+  try { localStorage.setItem(LS_TASKS_KEY, JSON.stringify(tasks)); } catch (e) {}
+}
+
+function taskIdOf(state) {
+  return state.c + '|' + state.p1 + '|' + state.p2;
+}
+
+function recordTask(state) {
+  const tasks = getStoredTasks();
+  const id = taskIdOf(state);
+  const lastMove = state.h[state.h.length - 1];
+  const idx = tasks.findIndex(t => t.id === id);
+  const isNewer = idx < 0 || lastMove.ts >= (tasks[idx].lastActivity || 0);
+  if (idx < 0) {
+    tasks.push({
+      id, url: location.href, title: state.t, p1: state.p1, p2: state.p2,
+      owner: state.o, lastActivity: lastMove.ts, createdAt: state.c,
+      completed: false, visitedAt: nowSeconds()
+    });
+  } else if (isNewer) {
+    tasks[idx] = Object.assign(tasks[idx], {
+      url: location.href, title: state.t, owner: state.o,
+      lastActivity: lastMove.ts, visitedAt: nowSeconds()
+    });
+  } else {
+    tasks[idx].visitedAt = nowSeconds();
+  }
+  saveStoredTasks(tasks);
+}
+
+function categorizeTasks() {
+  const myName = getMyName();
+  const tasks = getStoredTasks();
+  const result = { mine: [], theirs: [], completed: [] };
+  tasks.forEach(t => {
+    if (t.completed) { result.completed.push(t); return; }
+    const isMineByP1 = (myName === t.p1 && t.owner === 'p1');
+    const isMineByP2 = (myName === t.p2 && t.owner === 'p2');
+    if (isMineByP1 || isMineByP2) result.mine.push(t);
+    else result.theirs.push(t);
+  });
+  result.mine.sort((a, b) => a.lastActivity - b.lastActivity);  // most stale first
+  result.theirs.sort((a, b) => b.lastActivity - a.lastActivity);
+  result.completed.sort((a, b) => b.lastActivity - a.lastActivity);
+  return result;
+}
+
+function editMyName() {
+  const current = getMyName();
+  const newName = prompt('あなたの名前を入力してください', current);
+  if (newName !== null) {
+    setMyName(newName.trim());
+    render();
+  }
+}
+
+function toggleComplete(id, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const tasks = getStoredTasks();
+  const t = tasks.find(t => t.id === id);
+  if (t) { t.completed = !t.completed; saveStoredTasks(tasks); render(); }
+}
+
+function deleteStoredTask(id, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if (!confirm('このタスクを一覧から削除しますか？\n（URL自体は残ります）')) return;
+  saveStoredTasks(getStoredTasks().filter(t => t.id !== id));
+  render();
+}
+
+function completeFromCourt() {
+  const state = getCurrentState();
+  if (!state) return;
+  const tasks = getStoredTasks();
+  const id = taskIdOf(state);
+  const t = tasks.find(t => t.id === id);
+  if (t) {
+    t.completed = !t.completed;
+    saveStoredTasks(tasks);
+    showToast(t.completed ? '完了マークしました' : '完了マークを外しました');
+    render();
+  }
+}
+
+function renderTaskList(myName) {
+  const cat = categorizeTasks();
+  const renderCard = (t, kind) => {
+    const sec = nowSeconds() - t.lastActivity;
+    const stale = elapsedString(sec);
+    const otherName = (myName === t.p1) ? t.p2 : (myName === t.p2 ? t.p1 : `${t.p1}↔${t.p2}`);
+    return `
+      <div class="task-card">
+        <a class="task-card-link" href="${escapeHtml(t.url)}">
+          <div class="task-title">${escapeHtml(t.title)}</div>
+          <div class="task-meta">${escapeHtml(otherName)} ・ <span class="stale">${stale}</span></div>
+        </a>
+        <button class="task-action" title="完了/未完了切替" onclick="toggleComplete('${escapeHtml(t.id)}', event)">${t.completed ? '↩' : '✓'}</button>
+        <button class="task-action" title="一覧から削除" onclick="deleteStoredTask('${escapeHtml(t.id)}', event)">×</button>
+      </div>
+    `;
+  };
+  const section = (kind, label, items, openByDefault) => {
+    const empty = items.length === 0 ? 'empty' : '';
+    return `
+      <details class="${kind} ${empty}" ${openByDefault && items.length ? 'open' : ''}>
+        <summary>
+          <span>${label}</span>
+          <span class="summary-count">${items.length}</span>
+        </summary>
+        ${items.length === 0 ? '<div class="empty-text">なし</div>' : items.map(t => renderCard(t, kind)).join('')}
+      </details>
+    `;
+  };
+  const total = cat.mine.length + cat.theirs.length + cat.completed.length;
+  if (total === 0) return '';
+  return `
+    <div class="task-list">
+      ${section('mine', '🔴 あなたのコート', cat.mine, true)}
+      ${section('theirs', '⚪ 相手のコート', cat.theirs, false)}
+      ${section('done', '✅ 完了済み', cat.completed, false)}
+    </div>
+  `;
+}
+
+// ============================================================
 // Render: Setup
 // ============================================================
 let setupBallSide = 'p2'; // initially the ball is in the receiver's court (you sent it)
 
 function renderSetup() {
   document.body.className = 'setup';
+  const myName = getMyName();
+  const taskListHtml = renderTaskList(myName);
+  const mySectionHtml = (myName || taskListHtml) ? `
+      <div class="my-section">
+        <span class="my-name-display">👤 あなた: <b>${escapeHtml(myName || '未登録')}</b></span>
+        <button class="my-edit-btn" onclick="editMyName()">${myName ? '変更' : '登録'}</button>
+      </div>
+  ` : '';
   document.getElementById('app').innerHTML = `
     <div class="setup-screen">
       <h1>🏓 Task PingPong</h1>
       <p class="tagline">「次は私の番？相手の番？」を、URLに書く。</p>
       <p class="subtagline">2人のやり取り専用・アカウント不要・3秒で始まる。</p>
+
+      ${mySectionHtml}
+      ${taskListHtml}
 
       <div class="how-card">
         <h3>つかい方</h3>
@@ -422,7 +654,7 @@ function renderSetup() {
         <input type="text" id="title" placeholder="例：提案書ドラフトのレビュー" maxlength="80" />
 
         <label for="p1">あなたの名前</label>
-        <input type="text" id="p1" placeholder="例：イヌザキ" maxlength="20" />
+        <input type="text" id="p1" placeholder="例：イヌザキ" maxlength="20" value="${escapeHtml(myName)}" />
 
         <label for="p2">相手の名前</label>
         <input type="text" id="p2" placeholder="例：サトウさん" maxlength="20" />
@@ -464,6 +696,8 @@ function createTask() {
     showToast('全項目を入力してください');
     return;
   }
+  // Save my name (the creator's name = p1) for future use
+  setMyName(p1);
   const ts = nowSeconds();
   const state = {
     v: 1,
@@ -485,10 +719,16 @@ function createTask() {
 function renderCourt(state) {
   document.body.className = `court-${state.o}`;
 
+  // Auto-record this task in localStorage
+  recordTask(state);
+
   const ownerName = state.o === 'p1' ? state.p1 : state.p2;
   const lastMove = state.h[state.h.length - 1];
   const elapsedSec = nowSeconds() - lastMove.ts;
   const returnsCount = state.h.length - 1; // exclude initial creation
+  const taskId = taskIdOf(state);
+  const stored = getStoredTasks().find(t => t.id === taskId);
+  const isCompleted = stored && stored.completed;
 
   const historyHtml = [...state.h].reverse().map(h => {
     const byName = h.by === 'p1' ? state.p1 : state.p2;
@@ -538,6 +778,12 @@ function renderCourt(state) {
           <button class="secondary-btn" onclick="copyForChatwork()">📋 Chatwork用にコピー</button>
           <button class="secondary-btn" onclick="newTask()">＋ 新しいタスク</button>
         </div>
+      </div>
+
+      <div class="complete-row">
+        <button class="complete-btn ${isCompleted ? 'completed' : ''}" onclick="completeFromCourt()">
+          ${isCompleted ? '✅ 完了済み（戻す）' : '✓ このタスクを完了にする'}
+        </button>
       </div>
 
       <div class="url-warning">
@@ -622,7 +868,7 @@ function render() {
   }
 }
 
-// ===========================================================
+// ============================================================
 // Auto-update elapsed time every minute
 // ============================================================
 setInterval(() => {
@@ -650,6 +896,10 @@ window.createTask = createTask;
 window.returnBall = returnBall;
 window.copyForChatwork = copyForChatwork;
 window.newTask = newTask;
+window.editMyName = editMyName;
+window.toggleComplete = toggleComplete;
+window.deleteStoredTask = deleteStoredTask;
+window.completeFromCourt = completeFromCourt;
 </script>
 
 </body>
